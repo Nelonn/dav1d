@@ -1,0 +1,6 @@
+%define private_prefix dav1d
+%define ARCH_X86_64 @ARCH_X86_64@
+%define ARCH_X86_32 @ARCH_X86_32@
+%define PIC 1
+%define STACK_ALIGNMENT @STACK_ALIGNMENT@
+%define FORCE_VEX_ENCODING 0
