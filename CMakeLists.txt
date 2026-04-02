@@ -461,6 +461,17 @@ if(HAVE_ASM AND ARCH_X86)
     set(CMAKE_ASM_NASM_FLAGS "${CMAKE_ASM_NASM_FLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/src/ -I${CMAKE_CURRENT_BINARY_DIR}/")
 endif()
 
+# Enable ASM language for ARM assembly (non-MSVC)
+if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND NOT (WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "MSVC"))
+    # On Windows, ensure the C compiler is used for .S files
+    if(WIN32)
+        set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
+    endif()
+    enable_language(ASM)
+    set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS}" CACHE STRING "ASM compiler flags" FORCE)
+    set(CMAKE_INCLUDE_FLAG_ASM "-I")
+endif()
+
 # ARM assembly support on Windows with MSVC
 set(DAV1D_GASPP_PROCESSED_SOURCES "")
 if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
