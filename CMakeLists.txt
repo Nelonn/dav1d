@@ -881,7 +881,7 @@ if(WIN32 AND BUILD_SHARED_LIBS)
 endif()
 
 if(WIN32 AND ARCH_X86_64 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(dav1d PRIVATE -mcmodel=small)
+    target_compile_options(dav1d PRIVATE $<$<COMPILE_LANGUAGE:C>:-mcmodel=small>)
 endif()
 
 # ARM64EC support on Windows
