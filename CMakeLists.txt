@@ -33,26 +33,33 @@ foreach(bd IN LISTS DAV1D_BITDEPTHS)
     endif()
 endforeach()
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64|ARM64EC)")
+    set(ARCH_ARM 0)
     set(ARCH_AARCH64 1)
-    set(ARCH_ARM 0)
+    set(ARCH_X86 0)
+    set(ARCH_X86_64 0)
+    set(ARCH_X86_32 0)
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|ARM)")
-    set(ARCH_AARCH64 0)
     set(ARCH_ARM 1)
-else()
     set(ARCH_AARCH64 0)
+    set(ARCH_X86 0)
+    set(ARCH_X86_64 0)
+    set(ARCH_X86_32 0)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)")
     set(ARCH_ARM 0)
-endif()
-
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)")
+    set(ARCH_AARCH64 0)
     set(ARCH_X86 1)
     set(ARCH_X86_64 1)
     set(ARCH_X86_32 0)
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i[3-6]86|x86)")
+    set(ARCH_ARM 0)
+    set(ARCH_AARCH64 0)
     set(ARCH_X86 1)
     set(ARCH_X86_64 0)
     set(ARCH_X86_32 1)
 else()
+    set(ARCH_ARM 0)
+    set(ARCH_AARCH64 0)
     set(ARCH_X86 0)
     set(ARCH_X86_64 0)
     set(ARCH_X86_32 0)
@@ -436,6 +443,7 @@ int main(){return 0;}
     endif()
 endif()
 
+# Configure config.h after all HAVE_ASM checks are complete
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/config.h
@@ -451,6 +459,33 @@ if(HAVE_ASM AND ARCH_X86)
         @ONLY
     )
     set(CMAKE_ASM_NASM_FLAGS "${CMAKE_ASM_NASM_FLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/src/ -I${CMAKE_CURRENT_BINARY_DIR}/")
+endif()
+
+# ARM assembly support on Windows with MSVC
+set(DAV1D_GASPP_PROCESSED_SOURCES "")
+if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    find_program(GASPP gas-preprocessor.pl)
+    if(GASPP)
+        set(DAV1D_USE_GASPP ON)
+        set(DAV1D_GASPP_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+        if(ARCH_AARCH64)
+            set(DAV1D_ARMASM armasm64)
+        else()
+            set(DAV1D_ARMASM armasm)
+        endif()
+    else()
+        message(WARNING "gas-preprocessor.pl not found. ARM assembly optimizations will be disabled.")
+        set(HAVE_ASM 0)
+    endif()
+endif()
+
+# For ARM on Windows with non-MSVC compilers (e.g., MinGW, Clang), enable assembly
+if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND WIN32)
+    if(NOT CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+        # Enable assembly for ARM with GCC/Clang on Windows
+        # The .S files will be processed by the C preprocessor and then assembled
+        set(DAV1D_USE_GASPP OFF)
+    endif()
 endif()
 
 find_program(GIT_EXECUTABLE git)
@@ -773,9 +808,40 @@ foreach(bd IN LISTS DAV1D_BITDEPTHS)
     endif()
 endforeach()
 
+# Process ARM assembly files through gas-preprocessor and armasm on Windows/MSVC
+if(DAV1D_USE_GASPP AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    set(DAV1D_ASM_OBJECTS "")
+    foreach(asm_source IN LISTS DAV1D_ASM_SOURCES)
+        get_filename_component(source_name ${asm_source} NAME)
+        set(output_obj "${CMAKE_CURRENT_BINARY_DIR}/${source_name}.obj")
+        
+        add_custom_command(
+            OUTPUT ${output_obj}
+            COMMAND ${GASPP}
+                -as-type armasm
+                -arch ${DAV1D_GASPP_ARCH}
+                --
+                ${DAV1D_ARMASM}
+                -nologo
+                -I${CMAKE_CURRENT_SOURCE_DIR}/src
+                -I${CMAKE_CURRENT_BINARY_DIR}
+                ${asm_source}
+                -c
+                -o ${output_obj}
+            DEPENDS ${asm_source}
+            COMMENT "Processing ARM assembly ${source_name}"
+        )
+        list(APPEND DAV1D_ASM_OBJECTS ${output_obj})
+    endforeach()
+    set(DAV1D_FINAL_ASM_SOURCES ${DAV1D_ASM_OBJECTS})
+else()
+    # For non-MSVC compilers or when gas-preprocessor is not used, use sources directly
+    set(DAV1D_FINAL_ASM_SOURCES ${DAV1D_ASM_SOURCES})
+endif()
+
 add_library(dav1d
     ${DAV1D_SOURCES}
-    ${DAV1D_ASM_SOURCES}
+    ${DAV1D_FINAL_ASM_SOURCES}
     ${DAV1D_BITDEPTH_LIBS}
 )
 
@@ -816,6 +882,16 @@ endif()
 
 if(WIN32 AND ARCH_X86_64 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_compile_options(dav1d PRIVATE -mcmodel=small)
+endif()
+
+# ARM64EC support on Windows
+if(WIN32 AND ARCH_AARCH64 AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    # ARM64EC uses different calling convention, ensure proper code generation
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64EC")
+        target_compile_options(dav1d PRIVATE /arm64EC)
+    endif()
+    # Enable NEON intrinsics support
+    target_compile_options(dav1d PRIVATE /arch:ARMv8.1)
 endif()
 
 add_library(dav1d::dav1d ALIAS dav1d)
