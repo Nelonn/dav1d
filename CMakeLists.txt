@@ -450,6 +450,20 @@ configure_file(
     @ONLY
 )
 
+if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    message(WARNING "Disabling ARM assembly optimizations for MSVC builds.")
+    set(HAVE_ASM 0)
+endif()
+
+# For ARM on Windows with non-MSVC compilers (e.g., MinGW, Clang), enable assembly
+if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND WIN32)
+    if(NOT CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+        # Enable assembly for ARM with GCC/Clang on Windows
+        # The .S files will be processed by the C preprocessor and then assembled
+        set(DAV1D_USE_GASPP OFF)
+    endif()
+endif()
+
 if(HAVE_ASM AND ARCH_X86)
     enable_language(ASM_NASM)
     set(DAV1D_ENABLE_NASM ON)
@@ -470,33 +484,6 @@ if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND NOT (WIN32 AND CMAKE_C_COMPILER_I
     enable_language(ASM)
     set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS}" CACHE STRING "ASM compiler flags" FORCE)
     set(CMAKE_INCLUDE_FLAG_ASM "-I")
-endif()
-
-# ARM assembly support on Windows with MSVC
-set(DAV1D_GASPP_PROCESSED_SOURCES "")
-if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
-    find_program(GASPP gas-preprocessor.pl)
-    if(GASPP)
-        set(DAV1D_USE_GASPP ON)
-        set(DAV1D_GASPP_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
-        if(ARCH_AARCH64)
-            set(DAV1D_ARMASM armasm64)
-        else()
-            set(DAV1D_ARMASM armasm)
-        endif()
-    else()
-        message(WARNING "gas-preprocessor.pl not found. ARM assembly optimizations will be disabled.")
-        set(HAVE_ASM 0)
-    endif()
-endif()
-
-# For ARM on Windows with non-MSVC compilers (e.g., MinGW, Clang), enable assembly
-if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND WIN32)
-    if(NOT CMAKE_C_COMPILER_ID STREQUAL "MSVC")
-        # Enable assembly for ARM with GCC/Clang on Windows
-        # The .S files will be processed by the C preprocessor and then assembled
-        set(DAV1D_USE_GASPP OFF)
-    endif()
 endif()
 
 find_program(GIT_EXECUTABLE git)
