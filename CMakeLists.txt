@@ -443,13 +443,6 @@ int main(){return 0;}
     endif()
 endif()
 
-# Configure config.h after all HAVE_ASM checks are complete
-configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/config.h
-    @ONLY
-)
-
 if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     message(WARNING "Disabling ARM assembly optimizations for MSVC builds.")
     set(HAVE_ASM 0)
@@ -463,6 +456,13 @@ if(HAVE_ASM AND (ARCH_AARCH64 OR ARCH_ARM) AND WIN32)
         set(DAV1D_USE_GASPP OFF)
     endif()
 endif()
+
+# Configure config.h after all HAVE_ASM checks are complete
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/config.h
+    @ONLY
+)
 
 if(HAVE_ASM AND ARCH_X86)
     enable_language(ASM_NASM)
