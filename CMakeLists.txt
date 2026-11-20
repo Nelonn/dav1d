@@ -473,6 +473,9 @@ if(HAVE_ASM AND ARCH_X86)
         @ONLY
     )
     set(CMAKE_ASM_NASM_FLAGS "${CMAKE_ASM_NASM_FLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/src/ -I${CMAKE_CURRENT_BINARY_DIR}/")
+    if(APPLE)
+        string(APPEND CMAKE_ASM_NASM_FLAGS " -DPREFIX=1")
+    endif()
 endif()
 
 # Enable ASM language for ARM assembly (non-MSVC)
